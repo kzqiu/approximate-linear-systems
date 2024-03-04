@@ -130,7 +130,7 @@ def mgrk_with_adaptive_alpha(
     beta: float,
     theta: float,
     x0: typing.Optional[np.ndarray] = None,
-    max_iter=1000,
+    max_iter=10000,
     tol=1e-6
 ) -> np.ndarray:
     
@@ -139,7 +139,7 @@ def mgrk_with_adaptive_alpha(
     
     x = x0.copy()
     x_prev = x0.copy()
-    for k in range(1, max_iter + 1):
+    for _ in range(max_iter):
         # Compute the residuals and determine the set Sk
         residuals = np.abs(np.dot(A, x) - b)
         # Simplified computation for gamma_k
