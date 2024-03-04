@@ -9,7 +9,7 @@ def kaczmarz(
     x_init: typing.Optional[np.ndarray] = None,
     k: int = 100,
     scale: float = 1.0,
-) -> np.ndarray :
+) -> np.ndarray:
     """
     Performs randomized Kaczmarz method on linear system Ax=b.
 
@@ -28,9 +28,77 @@ def kaczmarz(
         probs = scale * np.random.random(len(b))
         for i in range(len(b)):
             if probs[i] > np.exp(-i):
-                x = x + ((b[i] - np.dot(A[i], x)) / np.linalg.norm(A[i]) ** 2) * A[i]
+                x = x + ((b[i] - np.dot(A[i], x)) /
+                         np.linalg.norm(A[i]) ** 2) * A[i]
 
     return x
+
+
+def mgrk_anu(
+    A: np.ndarray,
+    b: np.ndarray,
+    alpha: float,
+    beta: float,
+    theta: float,
+    x0: typing.Optional[np.ndarray] = None,
+    max_iter=1000,
+    tol=1e-6
+) -> np.ndarray:
+    """
+    Solves the Ax = b system using the mGRK method from https://arxiv.org/pdf/2307.01988.pdf
+
+    Parameters:
+    - A: numpy array, the coefficient matrix A in Ax = b.
+    - b: numpy array, the right-hand side vector in Ax = b.
+    - alpha: float, the step size parameter.
+    - beta: float, the momentum parameter.
+    - theta: float, the parameter to adjust the greedy probability criterion.
+    - x0: numpy array, initial guess for the solution.
+    - max_iter: int, maximum number of iterations.
+    - tol: float, tolerance for the stopping criterion.
+
+    Returns:
+    - x: numpy array, the approximate solution to Ax = b.
+    """
+
+    if x0 is None:
+        x0 = np.zeros_like(A.shape[1])
+
+    x = x0.copy()
+    x_prev = x0.copy()
+    for _ in range(max_iter):
+        # Compute the residuals and determine the set Sk
+        residuals = np.abs(np.dot(A, x) - b)
+        # Simplified computation for gamma_k
+        gamma_k = np.linalg.norm(A, ord='fro')**2
+        criterion = theta * \
+            np.max(residuals)**2 + (1 - theta) * \
+            np.linalg.norm(residuals)**2 / gamma_k
+        Sk = np.where(residuals**2 >= criterion)[0]
+
+        if len(Sk) == 0:
+            break  # All residuals are below the threshold
+
+        # Select ik from Sk based on some probability criterion (uniformly for simplicity)
+        ik = np.random.choice(Sk)
+
+        # Update x using the mGRK formula
+        a_ik = A[ik, :]
+        numerator = np.dot(a_ik, x) - b[ik]
+        denominator = np.linalg.norm(a_ik)**2
+
+        print(denominator)
+        x_next = x - (alpha * (numerator / denominator)
+                      * a_ik) + (beta * (x - x_prev))
+
+        if np.linalg.norm(x_next - x) < tol:
+            break  # Convergence criterion met
+
+        x_prev = x
+        x = x_next
+
+    return x
+
 
 def mgrk(
     A: np.ndarray,
@@ -38,9 +106,9 @@ def mgrk(
     alpha: float,
     beta: float,
     theta: float,
-    k: int=1,
-    max_iter: int=1000
-) -> np.ndarray :
+    k: int = 1,
+    max_iter: int = 1000
+) -> np.ndarray:
     """
     Implementation of mGRK from https://arxiv.org/pdf/2307.01988.pdf
     """
@@ -54,7 +122,8 @@ def mgrk(
         max_update = np.argmax(update)
 
         sk = np.argwhere(
-            update >= theta * max_update + (1 - theta) * np.linalg.norm(np.dot(A, xk) - b) ** 2 / gk
+            update >= theta * max_update +
+            (1 - theta) * np.linalg.norm(np.dot(A, xk) - b) ** 2 / gk
         ).T.squeeze()
 
         rk = np.where(i in sk, np.zeros_like(A[0]), )
@@ -62,7 +131,6 @@ def mgrk(
         print(probs)
 
         break
-        
 
     return xk
 
@@ -80,7 +148,8 @@ if __name__ == "__main__":
     b = np.array([3, 5, 0, 0, 6])
     # x = kaczmarz(A, b)
 
-    mgrk(A, b, 0.5, 0.5, 1)
+    # mgrk(A, b, 0.5, 0.5, 1)
+    mgrk_anu(A, b, 0.5, 0.5, 1)
 
     # print(f"A: {A}\nb: {b}")
     # print(f"x: {x}")
