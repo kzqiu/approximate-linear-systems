@@ -28,13 +28,12 @@ def kaczmarz(
         probs = scale * np.random.random(len(b))
         for i in range(len(b)):
             if probs[i] > np.exp(-i):
-                x = x + ((b[i] - np.dot(A[i], x)) /
-                         np.linalg.norm(A[i]) ** 2) * A[i]
+                x = x + ((b[i] - np.dot(A[i], x)) / np.linalg.norm(A[i]) ** 2) * A[i]
 
     return x
 
 
-def mgrk_anu(
+def mgrk(
     A: np.ndarray,
     b: np.ndarray,
     alpha: float,
@@ -42,7 +41,7 @@ def mgrk_anu(
     theta: float,
     x0: typing.Optional[np.ndarray] = None,
     max_iter=1000,
-    tol=1e-6
+    tol=1e-6,
 ) -> np.ndarray:
     """
     Solves the Ax = b system using the mGRK method from https://arxiv.org/pdf/2307.01988.pdf
@@ -62,7 +61,10 @@ def mgrk_anu(
     """
 
     if x0 is None:
-        x0 = np.zeros_like(A.shape[1])
+        x0 = np.zeros(A.shape[1])
+
+    print(A.shape)
+    print(x0.shape)
 
     x = x0.copy()
     x_prev = x0.copy()
@@ -70,10 +72,11 @@ def mgrk_anu(
         # Compute the residuals and determine the set Sk
         residuals = np.abs(np.dot(A, x) - b)
         # Simplified computation for gamma_k
-        gamma_k = np.linalg.norm(A, ord='fro')**2
-        criterion = theta * \
-            np.max(residuals)**2 + (1 - theta) * \
-            np.linalg.norm(residuals)**2 / gamma_k
+        gamma_k = np.linalg.norm(A, ord="fro") ** 2
+        criterion = (
+            theta * np.max(residuals) ** 2
+            + (1 - theta) * np.linalg.norm(residuals) ** 2 / gamma_k
+        )
         Sk = np.where(residuals**2 >= criterion)[0]
 
         if len(Sk) == 0:
@@ -85,11 +88,9 @@ def mgrk_anu(
         # Update x using the mGRK formula
         a_ik = A[ik, :]
         numerator = np.dot(a_ik, x) - b[ik]
-        denominator = np.linalg.norm(a_ik)**2
+        denominator = np.linalg.norm(a_ik) ** 2
 
-        print(denominator)
-        x_next = x - (alpha * (numerator / denominator)
-                      * a_ik) + (beta * (x - x_prev))
+        x_next = x - (alpha * (numerator / denominator) * a_ik) + (beta * (x - x_prev))
 
         if np.linalg.norm(x_next - x) < tol:
             break  # Convergence criterion met
@@ -100,45 +101,10 @@ def mgrk_anu(
     return x
 
 
-def mgrk(
-    A: np.ndarray,
-    b: np.ndarray,
-    alpha: float,
-    beta: float,
-    theta: float,
-    k: int = 1,
-    max_iter: int = 1000
-) -> np.ndarray:
-    """
-    Implementation of mGRK from https://arxiv.org/pdf/2307.01988.pdf
-    """
-    xk = np.zeros_like(b)
-
-    for _ in range(max_iter):
-        ax_minus_b_sqr = (np.dot(A, xk) - b) ** 2
-        nk = np.argwhere(ax_minus_b_sqr).T.squeeze()
-        gk = np.trace(np.dot(A[nk], A[nk].T))
-        update = ax_minus_b_sqr / np.diag(np.dot(A, A.T))
-        max_update = np.argmax(update)
-
-        sk = np.argwhere(
-            update >= theta * max_update +
-            (1 - theta) * np.linalg.norm(np.dot(A, xk) - b) ** 2 / gk
-        ).T.squeeze()
-
-        rk = np.where(i in sk, np.zeros_like(A[0]), )
-
-        print(probs)
-
-        break
-
-    return xk
-
-
 if __name__ == "__main__":
     A = np.array(
         [
-            [0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0],
             [0, 0, 1, 0, 0],
             [1, -7, 0, 4, 2],
             [0, 4, 2, -7, 1],
@@ -146,12 +112,9 @@ if __name__ == "__main__":
         ]
     )
     b = np.array([3, 5, 0, 0, 6])
-    # x = kaczmarz(A, b)
+    x = mgrk(A, b, 0.75, 0.4, 0.5)
 
-    # mgrk(A, b, 0.5, 0.5, 1)
-    mgrk_anu(A, b, 0.5, 0.5, 1)
-
-    # print(f"A: {A}\nb: {b}")
-    # print(f"x: {x}")
-    # print(f"approx. b: {np.dot(A, b)}")
-    # print(f'numpy x: {np.linalg.solve(A, b)}')
+    print(f"A: {A}\nb: {b}")
+    print(f"x: {x}")
+    print(f"approx. b: {np.dot(A, x)}")
+    print(f"numpy x: {np.linalg.solve(A, b)}")
