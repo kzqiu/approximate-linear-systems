@@ -34,7 +34,7 @@ def kaczmarz(
     return x
 
 
-def mgrk_anu(
+def mgrk(
     A: np.ndarray,
     b: np.ndarray,
     alpha: float,
@@ -99,59 +99,102 @@ def mgrk_anu(
 
     return x
 
+def line_search_wolfe_conditions(f, grad_f, x, d, alpha_init=0.5, c1=1e-4, c2=0.9):
+    """
+    Perform a line search to find the alpha that satisfies the Wolfe conditions.
 
-def mgrk(
+    Parameters:
+    - f: The objective function.
+    - grad_f: The gradient of the objective function.
+    - x: Current point in the iteration.
+    - d: The search direction.
+    - alpha_init: Initial guess for alpha.
+    - c1, c2: Constants for the Wolfe conditions.
+
+    Returns:
+    - alpha: Step size that satisfies the Wolfe conditions.
+    """
+    alpha = alpha_init
+    while True:
+        new_x = x + alpha * d
+        if np.all(f(new_x) <= f(x) + c1 * alpha * np.dot(grad_f(x), d)) and np.all(np.dot(grad_f(new_x), d) >= c2 * np.dot(grad_f(x), d)):
+            break
+        alpha *= 0.5
+    return alpha
+
+def mgrk_with_adaptive_alpha(
     A: np.ndarray,
     b: np.ndarray,
     alpha: float,
     beta: float,
     theta: float,
-    k: int = 1,
-    max_iter: int = 1000
+    x0: typing.Optional[np.ndarray] = None,
+    max_iter=1000,
+    tol=1e-6
 ) -> np.ndarray:
-    """
-    Implementation of mGRK from https://arxiv.org/pdf/2307.01988.pdf
-    """
-    xk = np.zeros_like(b)
+    
+    if x0 is None:
+        x0 = np.zeros_like(A.shape[1])
+    
+    x = x0.copy()
+    x_prev = x0.copy()
+    for k in range(1, max_iter + 1):
+        # Compute the residuals and determine the set Sk
+        residuals = np.abs(np.dot(A, x) - b)
+        # Simplified computation for gamma_k
+        gamma_k = np.linalg.norm(A, ord='fro')**2
+        criterion = theta * \
+            np.max(residuals)**2 + (1 - theta) * \
+            np.linalg.norm(residuals)**2 / gamma_k
+        Sk = np.where(residuals**2 >= criterion)[0]
 
-    for _ in range(max_iter):
-        ax_minus_b_sqr = (np.dot(A, xk) - b) ** 2
-        nk = np.argwhere(ax_minus_b_sqr).T.squeeze()
-        gk = np.trace(np.dot(A[nk], A[nk].T))
-        update = ax_minus_b_sqr / np.diag(np.dot(A, A.T))
-        max_update = np.argmax(update)
+        if len(Sk) == 0:
+            break  # All residuals are below the threshold
 
-        sk = np.argwhere(
-            update >= theta * max_update +
-            (1 - theta) * np.linalg.norm(np.dot(A, xk) - b) ** 2 / gk
-        ).T.squeeze()
+        # Select ik from Sk based on some probability criterion (uniformly for simplicity)
+        ik = np.random.choice(Sk)
 
-        rk = np.where(i in sk, np.zeros_like(A[0]), )
+        # Compute the search direction d
+        a_ik = A[ik, :]
+        numerator = np.dot(a_ik, x) - b[ik]
+        denominator = np.linalg.norm(a_ik)**2
+        d = -numerator / denominator * a_ik + beta * (x - x_prev)
+        
+        # Define f and grad_f for the line search
+        f = lambda x: 0.5 * np.linalg.norm(np.dot(A, x) - b)**2
+        grad_f = lambda x: np.dot(A.T, np.dot(A, x) - b)
+        
+        # Adaptive alpha using line search that satisfies Wolfe conditions
+        alpha = line_search_wolfe_conditions(f, grad_f, x, d)
 
-        print(probs)
+        # Update x with the found alpha
+        x_next = x + alpha * d
 
-        break
+        if np.linalg.norm(x_next - x) < tol:
+            break  # Convergence criterion met
 
-    return xk
+        x_prev = x
+        x = x_next
+
+    return x
 
 
 if __name__ == "__main__":
     A = np.array(
         [
-            [0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0],
-            [1, -7, 0, 4, 2],
-            [0, 4, 2, -7, 1],
-            [0, 2, 0, 1, -7],
+            [2, 1, 0, 0, 0],
+            [1, 2, 1, 0, 0],
+            [0, 1, 2, 1, 0],
+            [0, 0, 1, 2, 1],
+            [0, 0, 0, 1, 2],
         ]
     )
-    b = np.array([3, 5, 0, 0, 6])
+    b = np.array([1, 1, 1, 1, 1])
     # x = kaczmarz(A, b)
 
-    # mgrk(A, b, 0.5, 0.5, 1)
-    mgrk_anu(A, b, 0.5, 0.5, 1)
+    x = mgrk_with_adaptive_alpha(A, b, 0.5, 0.5, 1)
 
-    # print(f"A: {A}\nb: {b}")
-    # print(f"x: {x}")
-    # print(f"approx. b: {np.dot(A, b)}")
-    # print(f'numpy x: {np.linalg.solve(A, b)}')
+    print(f"A: {A}\nb: {b}")
+    print(f"x: {x}")
+    print(f"approx. b: {np.dot(A, x)}")
+    print(f'numpy x: {np.linalg.solve(A, b)}')
