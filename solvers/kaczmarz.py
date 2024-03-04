@@ -28,8 +28,7 @@ def kaczmarz(
         probs = scale * np.random.random(len(b))
         for i in range(len(b)):
             if probs[i] > np.exp(-i):
-                x = x + ((b[i] - np.dot(A[i], x)) /
-                         np.linalg.norm(A[i]) ** 2) * A[i]
+                x = x + ((b[i] - np.dot(A[i], x)) / np.linalg.norm(A[i]) ** 2) * A[i]
 
     return x
 
@@ -42,7 +41,7 @@ def mgrk(
     theta: float,
     x0: typing.Optional[np.ndarray] = None,
     max_iter=1000,
-    tol=1e-6
+    tol=1e-6,
 ) -> np.ndarray:
     """
     Solves the Ax = b system using the mGRK method from https://arxiv.org/pdf/2307.01988.pdf
@@ -62,7 +61,10 @@ def mgrk(
     """
 
     if x0 is None:
-        x0 = np.zeros_like(A.shape[1])
+        x0 = np.zeros(A.shape[1])
+
+    print(A.shape)
+    print(x0.shape)
 
     x = x0.copy()
     x_prev = x0.copy()
@@ -70,10 +72,11 @@ def mgrk(
         # Compute the residuals and determine the set Sk
         residuals = np.abs(np.dot(A, x) - b)
         # Simplified computation for gamma_k
-        gamma_k = np.linalg.norm(A, ord='fro')**2
-        criterion = theta * \
-            np.max(residuals)**2 + (1 - theta) * \
-            np.linalg.norm(residuals)**2 / gamma_k
+        gamma_k = np.linalg.norm(A, ord="fro") ** 2
+        criterion = (
+            theta * np.max(residuals) ** 2
+            + (1 - theta) * np.linalg.norm(residuals) ** 2 / gamma_k
+        )
         Sk = np.where(residuals**2 >= criterion)[0]
 
         if len(Sk) == 0:
@@ -85,11 +88,9 @@ def mgrk(
         # Update x using the mGRK formula
         a_ik = A[ik, :]
         numerator = np.dot(a_ik, x) - b[ik]
-        denominator = np.linalg.norm(a_ik)**2
+        denominator = np.linalg.norm(a_ik) ** 2
 
-        print(denominator)
-        x_next = x - (alpha * (numerator / denominator)
-                      * a_ik) + (beta * (x - x_prev))
+        x_next = x - (alpha * (numerator / denominator) * a_ik) + (beta * (x - x_prev))
 
         if np.linalg.norm(x_next - x) < tol:
             break  # Convergence criterion met
