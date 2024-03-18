@@ -42,6 +42,8 @@ def mgrk(
     x0: typing.Optional[np.ndarray] = None,
     max_iter=1000,
     tol=1e-6,
+    exit_rows=-1,
+    weight_exit=False,
 ) -> np.ndarray:
     """
     Solves the Ax = b system using the mGRK method from https://arxiv.org/pdf/2307.01988.pdf
@@ -55,16 +57,20 @@ def mgrk(
     - x0: numpy array, initial guess for the solution.
     - max_iter: int, maximum number of iterations.
     - tol: float, tolerance for the stopping criterion.
+    - exit_rows: int, the number of rows to consider for exit tolerance calculation
+    - weight_exit: boolean, whether to exp. weight exit condition rows
 
     Returns:
     - x: numpy array, the approximate solution to Ax = b.
     """
 
-    if x0 is None:
-        x0 = np.zeros(A.shape[1])
+    dim = A.shape[1]
 
-    print(A.shape)
-    print(x0.shape)
+    if x0 is None:
+        x0 = np.zeros(dim)
+
+    if exit_rows <= 0:
+        exit_rows = dim
 
     x = x0.copy()
     x_prev = x0.copy()
@@ -92,7 +98,12 @@ def mgrk(
 
         x_next = x - (alpha * (numerator / denominator) * a_ik) + (beta * (x - x_prev))
 
-        if np.linalg.norm(x_next - x) < tol:
+        exit_vec = (x_next - x)[:exit_rows]
+
+        if weight_exit:
+            exit_vec = exit_vec * 1 / np.arange(1, exit_rows + 1)
+
+        if np.linalg.norm(exit_vec) < tol:
             break  # Convergence criterion met
 
         x_prev = x
@@ -131,11 +142,18 @@ def mgrk_with_adaptive_alpha(
     theta: float,
     x0: typing.Optional[np.ndarray] = None,
     max_iter=10000,
-    tol=1e-6
+    tol=1e-6,
+    exit_rows=-1,
+    weight_exit=False,
 ) -> np.ndarray:
     
+    dim = A.shape[1]
+
     if x0 is None:
-        x0 = np.zeros_like(A.shape[1])
+        x0 = np.zeros(dim)
+
+    if exit_rows <= 0:
+        exit_rows = dim
     
     x = x0.copy()
     x_prev = x0.copy()
@@ -171,7 +189,12 @@ def mgrk_with_adaptive_alpha(
         # Update x with the found alpha
         x_next = x + alpha * d
 
-        if np.linalg.norm(x_next - x) < tol:
+        exit_vec = (x_next - x)[:exit_rows]
+
+        if weight_exit:
+            exit_vec = exit_vec * 1 / np.arange(1, exit_rows + 1)
+
+        if np.linalg.norm(exit_vec) < tol:
             break  # Convergence criterion met
 
         x_prev = x
