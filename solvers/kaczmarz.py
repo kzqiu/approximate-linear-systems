@@ -100,28 +100,45 @@ def mgrk(
 
     return x
 
-def line_search_wolfe_conditions(f, grad_f, x, d, alpha_init=0.5, c1=1e-4, c2=0.9):
-    """
-    Perform a line search to find the alpha that satisfies the Wolfe conditions.
+def line_search_wolfe_conditions(
+    f, grad_f, x, d, alpha_init=0.5, c1=1e-4, c2=0.9, max_iter=20, tol=1e-10
+    ):
+        """
+        Perform a line search to find the alpha that satisfies the Wolfe conditions with improvements.
 
-    Parameters:
-    - f: The objective function.
-    - grad_f: The gradient of the objective function.
-    - x: Current point in the iteration.
-    - d: The search direction.
-    - alpha_init: Initial guess for alpha.
-    - c1, c2: Constants for the Wolfe conditions.
+        Parameters:
+        - f: The objective function.
+        - grad_f: The gradient of the objective function.
+        - x: Current point in the iteration.
+        - d: The search direction.
+        - alpha_init: Initial guess for alpha.
+        - c1, c2: Constants for the Wolfe conditions.
+        - max_iter: Maximum number of iterations to prevent infinite loops.
+        - tol: Tolerance for considering Wolfe conditions met, addressing numerical precision issues.
 
-    Returns:
-    - alpha: Step size that satisfies the Wolfe conditions.
-    """
-    alpha = alpha_init
-    while True:
-        new_x = x + alpha * d
-        if np.all(f(new_x) <= f(x) + c1 * alpha * np.dot(grad_f(x), d)) and np.all(np.dot(grad_f(new_x), d) >= c2 * np.dot(grad_f(x), d)):
-            break
-        alpha *= 0.5
-    return alpha
+        Returns:
+        - alpha: Step size that satisfies the Wolfe conditions or comes within a tolerance of satisfying.
+        """
+        alpha = alpha_init
+        iter_count = 0  # Initialize iteration counter
+
+        while iter_count < max_iter:
+            new_x = x + alpha * d
+            f_new_x = f(new_x)  # Evaluate f at new_x once per iteration
+            grad_f_new_x = grad_f(new_x)  # Evaluate grad_f at new_x once per iteration
+
+            # Check Wolfe conditions with added tolerance
+            wolfe_1 = f_new_x <= f(x) + c1 * alpha * np.dot(grad_f(x), d) + tol
+            wolfe_2 = np.dot(grad_f_new_x, d) >= c2 * np.dot(grad_f(x), d) - tol
+
+            if wolfe_1 and wolfe_2:
+                break  # Wolfe conditions satisfied
+
+            alpha *= 0.5  # Halve alpha for the next iteration
+            iter_count += 1  # Increment iteration counter
+
+        # Return the final alpha, even if Wolfe conditions are not perfectly met to avoid infinite loops
+        return alpha
 
 def mgrk_with_adaptive_alpha(
     A: np.ndarray,
