@@ -41,6 +41,7 @@ def mgrk(
     theta: float,
     x0: typing.Optional[np.ndarray] = None,
     max_iter=1000,
+    lambduhh=1.,
     tol=1e-6,
     exit_rows=-1,
     weight_exit=False,
@@ -98,10 +99,10 @@ def mgrk(
 
         x_next = x - (alpha * (numerator / denominator) * a_ik) + (beta * (x - x_prev))
 
-        exit_vec = (x_next - x)[:exit_rows]
+        exit_vec = (x_next - x)[:min(exit_rows, dim)]
 
         if weight_exit:
-            exit_vec = exit_vec * 1 / np.arange(1, exit_rows + 1)
+            exit_vec = exit_vec * np.exp(-lambduhh * np.arange(exit_rows))
 
         if np.linalg.norm(exit_vec) < tol:
             break  # Convergence criterion met
@@ -141,6 +142,7 @@ def mgrk_with_adaptive_alpha(
     beta: float,
     theta: float,
     x0: typing.Optional[np.ndarray] = None,
+    lambduhh=1.,
     max_iter=10000,
     tol=1e-6,
     exit_rows=-1,
@@ -192,7 +194,7 @@ def mgrk_with_adaptive_alpha(
         exit_vec = (x_next - x)[:exit_rows]
 
         if weight_exit:
-            exit_vec = exit_vec * 1 / np.arange(1, exit_rows + 1)
+            exit_vec = exit_vec * np.exp(-lambduhh * np.arange(exit_rows))
 
         if np.linalg.norm(exit_vec) < tol:
             break  # Convergence criterion met
