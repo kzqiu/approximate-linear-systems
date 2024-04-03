@@ -305,13 +305,13 @@ class PCG:
         beta: float,
         theta: float,
         x0=None,
+        max_iter=10000,
+        tol=1e-6,
         exit_rows=-1,
         lambduhh=1.,
         weight_exit=False,
-        options={}
     ) -> np.ndarray:
-        # changed order of pinv and A
-        A = np.dot(pinv, A)
+        A_tilde = np.dot(pinv, A)
 
         dim = A.shape[1]
 
@@ -323,23 +323,37 @@ class PCG:
 
         x = x0.copy()
         x_prev = x0.copy()
-        # added preconditioner to b as well
-        b = np.dot(pinv, b)
-        b = b.T.squeeze()
-
-        count = 0
-        for _ in range(options["max_iter"]):
-            count += 1
-            # Compute the residuals and determine the set Sk
-            residuals = np.abs(np.dot(A, x) - b)
-            # Simplified computation for gamma_k
-            gamma_k = np.linalg.norm(A, ord="fro") ** 2
+        # print("x0: " + str(x0))
+        b_tilde = np.dot(pinv, b)
+        b_tilde.shape[1]
+        b_tilde = b_tilde.T.squeeze()
+        # print("b_tilde: " + str(b_tilde))
+        for _ in range(max_iter):
+            # Step 1
+            # Compute the residuals
+            residuals = np.abs(np.dot(A_tilde, x) - b_tilde)
+            # print("Residuals: " + str(residuals))
+            N_k = np.where(residuals != 0)[0]
+            # print("N_k: " + str(N_k))
+            
+            gamma_k = np.sum(np.linalg.norm(A_tilde[i], ord=2)**2 for i in N_k)
+            # print("Gamma_k: " + str(gamma_k))
+            
+            # Step 2
+            residual_divided = ((residuals) ** 2)/(np.linalg.norm(A_tilde, ord=2, axis=1) ** 2)
+            # print(np.linalg.norm(A_tilde[0], ord=2)**2)
+            # print("ai_norm: " + str(ai_norm))
+            # print(theta * np.max(((residuals) ** 2)/ai_norm))
             criterion = (
-                theta * np.max(residuals) ** 2
-                + (1 - theta) * np.linalg.norm(residuals) ** 2 / gamma_k
+                theta * np.max(residual_divided)
+                + (1 - theta) * ((np.linalg.norm(np.dot(A_tilde,x)-b_tilde, ord=2) ** 2) / gamma_k)
             )
-            Sk = np.where(residuals**2 >= criterion)[0]
+            # print("Gamma side: " + str((1 - theta) * (np.linalg.norm(np.dot(A_tilde,x)-b_tilde, ord=2) ** 2 / gamma_k)))
+            # print("Residuals divided: " + str(residual_divided))
+            # print("Criterion: " + str(criterion))
+            Sk = np.where(residual_divided >= criterion)[0]
 
+            # print(Sk)
             if len(Sk) == 0:
                 break  # All residuals are below the threshold
 
@@ -347,37 +361,44 @@ class PCG:
             ik = np.random.choice(Sk)
 
             # Compute the search direction d
-            a_ik = A[ik, :]
-            numerator = np.dot(a_ik, x) - b[ik]
+            a_ik = A_tilde[ik, :]
+            numerator = np.dot(a_ik, x) - b_tilde[ik]
             denominator = np.linalg.norm(a_ik) ** 2
-            d = -numerator / denominator * a_ik + beta * (x - x_prev)
+            direction = (-numerator / denominator * a_ik)
+            alpha_direction = (-numerator / denominator * a_ik) + (beta * (x - x_prev))
 
             # Define f and grad_f for the line search
-            f = lambda x: 0.5 * np.linalg.norm(np.dot(A, x) - b) ** 2
-            grad_f = lambda x: np.dot(A.T, np.dot(A, x) - b)
+            f = lambda x: 0.5 * np.linalg.norm(np.dot(A_tilde, x) - b_tilde) ** 2
+            grad_f = lambda x: np.dot(A_tilde.T, np.dot(A_tilde, x) - b_tilde)
 
             # Adaptive alpha using line search that satisfies Wolfe conditions
-            alpha = self.line_search_wolfe_conditions(f, grad_f, x, d)
+            # alpha = self.line_search_strong_wolfe_conditions(f, grad_f, x, alpha_direction)
 
             # Update x with the found alpha
-            x_next = x + alpha * d
+            x_next = x + alpha * direction + (beta * (x - x_prev))
 
             exit_vec = (x_next - x)[:min(dim, exit_rows)]
 
-            if weight_exit:
-                exit_vec = exit_vec * np.exp(-lambduhh * np.arange(exit_rows))
+            # if weight_exit:
+            #     exit_vec = exit_vec * np.exp(-lambduhh * np.arange(exit_rows))
 
-            if np.linalg.norm(exit_vec) < options["exit_tolerance"]:
-                break  # Convergence criterion met
-			
+            # if np.linalg.norm(exit_vec) < tol:
+            #     break  # Convergence criterion met
+            
+            
+            exit_norm = np.linalg.norm(np.dot(A_tilde,x) - b_tilde) ** 2
+            if exit_norm < tol:
+                break
+
             x_prev = x
             x = x_next
-        
+
+        print(_)
 
         x = x.reshape(len(x), 1)
-        x = np.dot(x.T, pinv).T
 
-        return x, count
+        # print("x: " + str(x))
+        return x
     
     def mgrk_complete(self, A, b, Pinv, guess, options = {}, alpha = 0.6, beta = 0.4, theta = 0.8):
         self.set_default_options(options)
