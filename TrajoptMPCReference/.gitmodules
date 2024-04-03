@@ -1,0 +1,6 @@
+[submodule "GBD-PCG-Python"]
+	path = GBD-PCG-Python
+	url = https://github.com/A2R-Lab/GBD-PCG-Python
+[submodule "GRiD"]
+	path = GRiD
+	url = https://github.com/A2R-Lab/GRiD
