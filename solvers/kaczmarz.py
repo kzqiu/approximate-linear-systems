@@ -221,6 +221,59 @@ def mgrk_with_adaptive_alpha(
 
     return x
 
+def fdbk(A, b, x0 = None, max_iter=1000, tol=1e-6):
+  """
+  Implementation of the Fast Deterministic Block Kaczmarz (FDBK) algorithm.
+
+  Parameters:
+    A: The coefficient matrix.
+    b: The right-hand side vector.
+    x0: The initial guess.
+    max_iter: The maximum number of iterations.
+    tol: The tolerance for the stopping criterion.
+
+  Returns:
+    x: The approximate solution.
+  """
+
+  # Initialize the variables.
+  dim = A.shape[1]
+  if x0 is None:
+        x0 = np.zeros(dim)
+        
+  x = x0.copy()
+  
+  # Iterate until the stopping criterion is met.
+  for _ in range(max_iter):
+    # Computer epsilon_k
+    residual_norm = np.linalg.norm(b-np.dot(A, x), ord=2)**2
+    matrix_row_norm = np.linalg.norm(A, ord=2, axis=1)**2
+    res_over_row = np.abs(b-np.dot(A,x)) / matrix_row_norm
+    frob_norm = np.linalg.norm(A, ord='fro')**2
+    epsilon_k = 0.5 * ((1/residual_norm) * np.max(res_over_row) + (1 / frob_norm))
+    
+    # Determine the index set of positive integers
+    criterion = (
+        epsilon_k * residual_norm * matrix_row_norm
+    )
+    tau_k = np.where(res_over_row >= criterion)[0]
+    
+    # eta_k = Sum (b_i - A_i * x) * e_i over i in tau_k where e_i is the i_th column of an Identity matrix.
+    print(b[tau_k].shape)
+    print(np.dot(A, x)[tau_k].shape)
+    print(np.eye(dim)[:, tau_k].shape)
+    
+    eta_k = np.sum((b[tau_k] - np.dot(A, x)[tau_k])) * np.eye(dim)[:, tau_k]
+      
+    # Update x using the FDBK formula
+    step_size = ((np.dot(eta_k.T, b-np.dot(A,x))) / (np.linalg.norm(np.dot(A.T, eta_k), ord=2)**2)) * np.dot(A.T, eta_k)
+    x = x + step_size
+    
+    if np.linalg.norm(b-np.dot(A, x), ord=2)**2 < tol:
+      break
+
+  return x
+
 
 if __name__ == "__main__":
     A = np.array(
@@ -235,7 +288,8 @@ if __name__ == "__main__":
     b = np.array([1, 1, 1, 1, 1])
     # x = kaczmarz(A, b)
 
-    x = mgrk_with_adaptive_alpha(A, b, 0.5, 0.5, 1)
+    # x = mgrk_with_adaptive_alpha(A, b, 0.5, 0.5, 1)
+    x = fdbk(A, b)
 
     print(f"A: {A}\nb: {b}")
     print(f"x: {x}")
