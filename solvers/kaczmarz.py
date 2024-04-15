@@ -248,7 +248,7 @@ def fdbk(A, b, x0 = None, max_iter=1000, tol=1e-6):
     # Computer epsilon_k
     residual_norm = np.linalg.norm(b-np.dot(A, x), ord=2)**2
     matrix_row_norm = np.linalg.norm(A, ord=2, axis=1)**2
-    res_over_row = np.abs(b-np.dot(A,x)) / matrix_row_norm
+    res_over_row = (np.abs(b-np.dot(A,x))**2) / matrix_row_norm
     frob_norm = np.linalg.norm(A, ord='fro')**2
     epsilon_k = 0.5 * ((1/residual_norm) * np.max(res_over_row) + (1 / frob_norm))
     
@@ -256,14 +256,10 @@ def fdbk(A, b, x0 = None, max_iter=1000, tol=1e-6):
     criterion = (
         epsilon_k * residual_norm * matrix_row_norm
     )
-    tau_k = np.where(res_over_row >= criterion)[0]
+    # print(criterion)
+    tau_k = np.where(np.abs(b-np.dot(A,x))**2 >= criterion)[0]
     
-    # eta_k = Sum (b_i - A_i * x) * e_i over i in tau_k where e_i is the i_th column of an Identity matrix.
-    print(b[tau_k].shape)
-    print(np.dot(A, x)[tau_k].shape)
-    print(np.eye(dim)[:, tau_k].shape)
-    
-    eta_k = np.sum((b[tau_k] - np.dot(A, x)[tau_k])) * np.eye(dim)[:, tau_k]
+    eta_k = np.sum((b[tau_k] - np.dot(A, x)[tau_k]) * np.eye(dim)[:, tau_k], axis=1)
       
     # Update x using the FDBK formula
     step_size = ((np.dot(eta_k.T, b-np.dot(A,x))) / (np.linalg.norm(np.dot(A.T, eta_k), ord=2)**2)) * np.dot(A.T, eta_k)
@@ -271,6 +267,8 @@ def fdbk(A, b, x0 = None, max_iter=1000, tol=1e-6):
     
     if np.linalg.norm(b-np.dot(A, x), ord=2)**2 < tol:
       break
+    
+  print(_)
 
   return x
 
